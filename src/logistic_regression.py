@@ -1,5 +1,5 @@
 import torch
-
+import torch.nn as nn
 try:
     from src.utils import SentimentExample
     from src.data_processing import bag_of_words
