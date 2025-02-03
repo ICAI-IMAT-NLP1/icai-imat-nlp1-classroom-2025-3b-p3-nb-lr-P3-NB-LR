@@ -1,5 +1,4 @@
 import torch
-import torch.nn as nn
 from collections import Counter
 from typing import Dict
 
@@ -30,9 +29,9 @@ class NaiveBayes:
             delta (float): Smoothing parameter for Laplace smoothing.
         """
         # TODO: Estimate class priors and conditional probabilities of the bag of words 
-        self.class_priors = None
-        self.vocab_size = None # Shape of the probability tensors, useful for predictions and conditional probabilities
-        self.conditional_probabilities = None
+        self.class_priors = self.estimate_class_priors(labels)
+        self.vocab_size = features.shape[1] # Shape of the probability tensors, useful for predictions and conditional probabilities
+        self.conditional_probabilities = self.estimate_conditional_probabilities(features, labels, delta)
         return
 
     def estimate_class_priors(self, labels: torch.Tensor) -> Dict[int, torch.Tensor]:
@@ -46,7 +45,10 @@ class NaiveBayes:
             Dict[int, torch.Tensor]: A dictionary mapping class labels to their estimated prior probabilities.
         """
         # TODO: Count number of samples for each output class and divide by total of samples
-        class_priors: Dict[int, torch.Tensor] = None
+        class_priors: Dict[int, torch.Tensor] = {}
+        class_counts = Counter(labels.tolist())
+        for class_label, count in class_counts.items():
+            class_priors[class_label] = torch.tensor(count/len(labels))
         return class_priors
 
     def estimate_conditional_probabilities(
@@ -64,7 +66,12 @@ class NaiveBayes:
             Dict[int, torch.Tensor]: Conditional probabilities of each word for each class.
         """
         # TODO: Estimate conditional probabilities for the words in features and apply smoothing
-        class_word_counts: Dict[int, torch.Tensor] = None
+        class_word_counts: Dict[int, torch.Tensor] = {}
+        
+        for label in torch.unique(labels):
+            class_features = features[labels == label]
+            word_counts = class_features.sum(dim=0)
+            class_word_counts[label.item()] = (word_counts + delta) / (word_counts.sum() + delta * self.vocab_size)
 
         return class_word_counts
 
@@ -85,8 +92,11 @@ class NaiveBayes:
             raise ValueError(
                 "Model must be trained before estimating class posteriors."
             )
-        # TODO: Calculate posterior based on priors and conditional probabilities of the words
-        log_posteriors: torch.Tensor = None
+        log_posteriors: torch.Tensor = torch.zeros(len(self.class_priors))
+        # posterios = prior * likelihood (conditional)
+        for label,prior in self.class_priors.items():
+            log_posteriors[label] = torch.log(prior) + torch.sum(torch.log(self.conditional_probabilities[label] * feature + 1e-10))
+
         return log_posteriors
 
     def predict(self, feature: torch.Tensor) -> int:
@@ -106,7 +116,13 @@ class NaiveBayes:
             raise Exception("Model not trained. Please call the train method first.")
         
         # TODO: Calculate log posteriors and obtain the class of maximum likelihood 
-        pred: int = None
+        #pred: int = 0
+        """
+         Return the class label that has the highest posterior probability
+        """
+        log_posteriors = self.estimate_class_posteriors(feature)
+        pred = torch.argmax(log_posteriors).item()
+
         return pred
 
     def predict_proba(self, feature: torch.Tensor) -> torch.Tensor:
@@ -126,5 +142,16 @@ class NaiveBayes:
             raise Exception("Model not trained. Please call the train method first.")
 
         # TODO: Calculate log posteriors and transform them to probabilities (softmax)
-        probs: torch.Tensor = None
+        probs: torch.Tensor = torch.zeros(len(self.class_priors))
+        """
+         Return these probabilities, providing insights into the classifier’s confidence and decision making process
+        """
+        log_posteriors = self.estimate_class_posteriors(feature)
+        probs = torch.softmax(log_posteriors, dim=0)
         return probs
+    
+
+
+
+
+
