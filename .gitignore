@@ -9,6 +9,7 @@ __pycache__/
 .mypy_cache/
 /results/
 scalers/
+/NLP_P3/
 
 # files
 *.csv
